@@ -147,7 +147,7 @@ Direct frame-by-frame argmax predictions in computer vision produce rapid flicke
         <br /><sub>Video & HUD UI</sub>
       </td>
       <td align="center" width="160">
-        <img src="https://www.gstatic.com/devrel-devsite/prod/vc8d41e72304df3bfbf8e5c8e31b790d9f48de27ca9b4eb990fb1b63b4f620216/mediapipe/images/favicon.png" width="48" height="48" alt="MediaPipe" />
+        <img src="https://cdn.simpleicons.org/mediapipe/007FFF" width="48" height="48" alt="MediaPipe" />
         <br /><b>MediaPipe</b>
         <br /><sub>3D Skeletal Tracking</sub>
       </td>
