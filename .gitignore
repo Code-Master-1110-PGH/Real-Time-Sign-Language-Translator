@@ -22,3 +22,10 @@ hand_landmarker.task
 .DS_Store
 Thumbs.db
 
+# Raw video datasets & test caches
+data/wlasl/
+*.mp4
+*.avi
+*.mov
+.pytest_cache/
+

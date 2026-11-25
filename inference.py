@@ -7,9 +7,10 @@ low-latency video processing loop with an informative HUD overlay.
 """
 
 import argparse
+from dataclasses import replace
 import os
 import time
-from typing import Optional, Tuple
+from typing import Optional
 import cv2
 import numpy as np
 import torch
@@ -112,6 +113,10 @@ class RealTimeTranslator:
     def __init__(self, config: Optional[PipelineConfig] = None):
         self.config = config or PipelineConfig()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._cached_state_dict = None
+
+        # Inspect checkpoint metadata first so model & smoother match saved class_names/architecture
+        self._load_checkpoint_metadata()
 
         # 1. Feature Extractor
         print("[*] Initializing MediaPipe Hand Feature Extractor...")
@@ -131,22 +136,51 @@ class RealTimeTranslator:
 
         self.visualizer = HUDVisualizer()
 
+    def _load_checkpoint_metadata(self) -> None:
+        """Reads model architecture and class_names from checkpoint if available."""
+        weights_path = self.config.model_weights_path
+        if not os.path.exists(weights_path):
+            return
+
+        try:
+            ckpt = torch.load(weights_path, map_location=self.device, weights_only=True)
+        except Exception:
+            ckpt = torch.load(weights_path, map_location=self.device, weights_only=False)
+
+        if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+            self._cached_state_dict = ckpt["model_state_dict"]
+            updates = {}
+            if "class_names" in ckpt and ckpt["class_names"]:
+                updates["labels"] = [str(c) for c in ckpt["class_names"]]
+            elif "num_classes" in ckpt and int(ckpt["num_classes"]) != self.config.num_classes:
+                updates["labels"] = [f"CLASS_{i}" for i in range(int(ckpt["num_classes"]))]
+
+            if "model_type" in ckpt:
+                updates["model_type"] = str(ckpt["model_type"])
+            if "input_dim" in ckpt:
+                updates["feature_dim"] = int(ckpt["input_dim"])
+            if "hidden_dim" in ckpt:
+                updates["hidden_dim"] = int(ckpt["hidden_dim"])
+            if "num_layers" in ckpt:
+                updates["num_layers"] = int(ckpt["num_layers"])
+            if "bidirectional" in ckpt:
+                updates["bidirectional"] = bool(ckpt["bidirectional"])
+
+            if updates:
+                self.config = replace(self.config, **updates)
+        else:
+            self._cached_state_dict = ckpt
+
     def _load_model_weights(self) -> None:
         """Loads weights from checkpoint file if present."""
         weights_path = self.config.model_weights_path
-        if os.path.exists(weights_path):
+        if self._cached_state_dict is not None:
             print(f"[+] Loading model weights from: '{weights_path}'")
-            try:
-                ckpt = torch.load(weights_path, map_location=self.device, weights_only=True)
-            except Exception:
-                ckpt = torch.load(weights_path, map_location=self.device, weights_only=False)
-
-            state_dict = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
-            self.model.load_state_dict(state_dict)
-            print("[+] Weights loaded successfully.")
+            self.model.load_state_dict(self._cached_state_dict)
+            print(f"[+] Weights loaded successfully ({self.config.num_classes} classes).")
         else:
             print(f"[!] Warning: Weights checkpoint '{weights_path}' not found.")
-            print("[!] Running with initialized weights. Run `python train.py` to train model.")
+            print("[!] Running with initialized weights. Run `python train.py --data <npz>` to train model.")
 
     def run(self, source=0, max_frames: Optional[int] = None) -> None:
         """
@@ -255,7 +289,6 @@ def run_synthetic_benchmark(translator: RealTimeTranslator, num_frames: int = 90
     dummy_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
     latencies = []
-    fps_values = []
 
     for i in range(num_frames):
         t0 = time.perf_counter()
@@ -274,32 +307,33 @@ def run_synthetic_benchmark(translator: RealTimeTranslator, num_frames: int = 90
 
         dt = time.perf_counter() - t0
         latencies.append(dt * 1000.0)
-        fps_values.append(1.0 / max(dt, 1e-5))
 
-    mean_lat = np.mean(latencies)
-    p95_lat = np.percentile(latencies, 95)
-    mean_fps = np.mean(fps_values)
+    mean_lat = float(np.mean(latencies))
+    p95_lat = float(np.percentile(latencies, 95))
+    effective_fps = 1000.0 / max(mean_lat, 1e-5)
 
-    print("\n" + "=" * 50)
-    print("      REAL-TIME SYSTEM LATENCY BENCHMARK        ")
-    print("=" * 50)
+    print("\n" + "=" * 54)
+    print("        REAL-TIME SYSTEM LATENCY BENCHMARK        ")
+    print("=" * 54)
     print(f"Device:               {translator.device}")
     print(f"Model Architecture:   {translator.config.model_type.upper()}")
+    print(f"Inference Stride:     k={translator.config.inference_stride} (amortized throughput)")
     print(f"Average Latency:      {mean_lat:.2f} ms / frame")
     print(f"95th Percentile:      {p95_lat:.2f} ms / frame")
-    print(f"Effective Throughput: {mean_fps:.1f} FPS")
-    print("=" * 50 + "\n")
+    print(f"Effective Throughput: {effective_fps:.1f} FPS (1000 / mean_ms)")
+    print("=" * 54 + "\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Real-Time Sign Language Translator")
     parser.add_argument("--source", default=0, help="Webcam device ID (0) or path to video file")
     parser.add_argument("--model-type", default="gru", choices=["gru", "lstm", "tcn"])
+    parser.add_argument("--weights", default="gesture_model.pt", help="Path to trained model checkpoint")
     parser.add_argument("--benchmark", action="store_true", help="Run synthetic latency benchmark without camera")
     parser.add_argument("--max-frames", type=int, default=None, help="Stop after N frames")
     args = parser.parse_args()
 
-    cfg = PipelineConfig(model_type=args.model_type)
+    cfg = PipelineConfig(model_type=args.model_type, model_weights_path=args.weights)
 
     # Cast source to integer if numeric
     source = int(args.source) if str(args.source).isdigit() else args.source

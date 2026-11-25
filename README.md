@@ -1,197 +1,168 @@
 <div align="center">
 
-  # ⚡ Real-Time Sign Language Translator
-  ### *Sub-30ms Dynamic Gesture Recognition & Translation Pipeline*
-
-  <a href="https://github.com/Code-Master-1110-PGH/Real-Time-Sign-Language-Translator">
-    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&pause=1000&color=00F5D4&center=true&vCenter=true&width=700&lines=40%2B+FPS+Real-Time+Inference+on+Commodity+CPU;PyTorch+GRU+%2B+Temporal+Attention+Architecture;7%2C300x+Dimensionality+Reduction+via+MediaPipe;Scale+%26+Translation-Invariant+Kinematic+Features;Zero-Flicker+Debounced+Translation+Subtitles" alt="Typing Subtitle" />
-  </a>
+  # Real-Time Sign Language Translator
+  ### *Lightweight Dynamic Gesture Recognition & Translation Pipeline*
 
   <p align="center">
     <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
     <a href="https://pytorch.org"><img src="https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch"></a>
     <a href="https://developers.google.com/mediapipe"><img src="https://img.shields.io/badge/MediaPipe-Tasks_Vision-007FFF?style=for-the-badge&logo=google&logoColor=white" alt="MediaPipe"></a>
-    <a href="https://opencv.org"><img src="https://img.shields.io/badge/OpenCV-5.0-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" alt="OpenCV"></a>
+    <a href="https://opencv.org"><img src="https://img.shields.io/badge/OpenCV-4.x-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" alt="OpenCV"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-00C853?style=for-the-badge" alt="License"></a>
-    <a href="https://github.com/Code-Master-1110-PGH/Real-Time-Sign-Language-Translator/stargazers"><img src="https://img.shields.io/github/stars/Code-Master-1110-PGH/Real-Time-Sign-Language-Translator?style=for-the-badge&color=gold" alt="Stars"></a>
   </p>
 
   <p align="center">
-    <b>A high-throughput, production-grade computer vision and deep learning system architected for continuous real-time sign language translation at edge latency on standard CPU hardware.</b>
+    <b>A modular computer vision and sequence-modeling system for dynamic sign language recognition on commodity CPU hardware, featuring wrist-anchored kinematic normalization, attention-augmented sequence models, and debounced real-time inference.</b>
   </p>
 
   <p align="center">
     <a href="#-system-architecture--data-flow">Architecture</a> •
     <a href="#-key-engineering-highlights">Engineering Highlights</a> •
-    <a href="#-empirical-performance-benchmarks">Benchmarks</a> •
+    <a href="#-architecture-ablation--held-out-test-benchmarks">Benchmarks</a> •
     <a href="#-quickstart--installation">Quickstart</a> •
-    <a href="#-tech-stack">Tech Stack</a>
+    <a href="#-limitations--error-analysis">Limitations</a>
   </p>
 
-</div>
-
----
-
-## 📽️ Live Demonstration
-
-<div align="center">
-  <table style="border: none;">
-    <tr>
-      <td align="center">
-        <!-- Replace the URL below with your actual demo GIF or MP4 recording -->
-        <img src="https://raw.githubusercontent.com/Code-Master-1110-PGH/Real-Time-Sign-Language-Translator/main/assets/demo.gif" alt="Real-Time Sign Language Translator Demo" width="750" onerror="this.onerror=null; this.src='https://placehold.co/800x450/141E30/00F5D4?text=Drop+Your+Live+Webcam+Demo+GIF+Here+(assets/demo.gif)&font=fira-code';" style="border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);" />
-      </td>
-    </tr>
-    <tr>
-      <td align="center">
-        <i>Real-time skeletal joint tracking (MediaPipe), dynamic sequence inference (PyTorch GRU), and debounced translation subtitle ribbon running at <b>40.6 FPS</b> on CPU.</i>
-      </td>
-    </tr>
-  </table>
 </div>
 
 ---
 
 ## 🏗️ System Architecture & Data Flow
 
-Traditional video action recognition feeds high-dimensional RGB voxel cubes (e.g., $30\text{ frames} \times 224 \times 224 \times 3 \approx 4.5\text{M}$ floating points) into massive 3D-CNNs (I3D, SlowFast, Video-Swin), demanding $>60\text{ GFLOPs}$ and causing unworkable CPU latencies ($>180\text{ ms}$).
+Traditional video action recognition feeds high-dimensional RGB voxel cubes (e.g., $30\text{ frames} \times 640 \times 480 \times 3$) into large 3D-CNNs (I3D, SlowFast, Video-Swin), incurring heavy compute overhead on CPU.
 
-This project resolves this computational bottleneck by decoupling **spatio-temporal perception** into a low-latency two-stage pipeline:
+This project decouples **spatio-temporal perception** into a two-stage landmark-to-sequence pipeline:
 
 ```mermaid
 flowchart LR
-    A["🎥 Ingestion\nOpenCV Stream\n(30-60 FPS)"] --> B["🖐️ MediaPipe\n3D Coordinate\nRegression"]
-    B --> C["📐 Kinematic Norm\nTranslation & Scale\nInvariance Layer"]
-    C --> D["⏱️ Ring Buffer\nSliding Temporal\nWindow (T=30)"]
-    D -->|"Decoupled Stride (k=2)"| E["🧠 PyTorch GRU\nTemporal Attention\nPooling (<65K Params)"]
-    E --> F["🛡️ Smoother\nEMA Filter &\nDebounce Machine"]
-    F --> G["🖥️ Real-Time HUD\nSubtitles & Metrics\n(25ms Latency)"]
+    A["Ingestion\nOpenCV Stream"] --> B["MediaPipe\n3D Hand Landmarks\n(21 pts x 2 hands)"]
+    B --> C["Kinematic Norm\nWrist-Origin &\nScale Invariance"]
+    C --> D["Ring Buffer\nSliding Temporal\nWindow (T=30)"]
+    D -->|"Decoupled Stride (k=2)"| E["PyTorch Sequence Model\nGestureGRU / LSTM / TCN\n(64,969 Params for GRU)"]
+    E --> F["Smoother\nEMA Filter &\nDebounce Machine"]
+    F --> G["Real-Time HUD\nSubtitles & Telemetry"]
 ```
 
 ### Detailed Pipeline Breakdown
 
-| Pipeline Stage | Module | Algorithmic Mechanism | Latency / Complexity |
-| :--- | :--- | :--- | :--- |
-| **1. Video Capture** | [`inference.py`](file:///c:/Real-Time%20sign%20language%20traslator/inference.py) | OpenCV multi-threaded stream ingestion, RGB matrix transformation, horizontal mirror flip. | $\sim 2.1\text{ ms}$ |
-| **2. Landmark Detection** | [`feature_extractor.py`](file:///c:/Real-Time%20sign%20language%20traslator/feature_extractor.py) | MediaPipe Hand Landmarker via **TFLite XNNPACK delegate**, regressing 21 3D landmarks per hand. | $\sim 18.5\text{ ms}$ |
-| **3. Kinematic Normalization** | [`feature_extractor.py`](file:///c:/Real-Time%20sign%20language%20traslator/feature_extractor.py) | **Translation Centering:** $p'_i = p_i - p_0$<br>**Scale Normalization:** $p''_i = \frac{p'_i}{\|p'_9\|_2 + \epsilon}$ | $\sim 0.3\text{ ms}$ |
-| **4. Temporal Windowing** | [`buffer.py`](file:///c:/Real-Time%20sign%20language%20traslator/buffer.py) | Circular FIFO ring-buffer preserving continuous $T=30$ frame context ($1.0\text{s}$) with zero-copy PyTorch tensor generation. | $\sim 0.1\text{ ms}$ |
-| **5. Sequence Inference** | [`models.py`](file:///c:/Real-Time%20sign%20language%20traslator/models.py) | PyTorch **GestureBiGRU** with self-attention temporal pooling. Evaluated on stride $k=2$. | $\sim 3.8\text{ ms}$ |
-| **6. Temporal Debounce** | [`smoother.py`](file:///c:/Real-Time%20sign%20language%20traslator/smoother.py) | Softmax EMA filter ($\alpha=0.65$), confidence threshold gate ($\tau=0.70$), and state machine debounce ($N=3$). | $\sim 0.2\text{ ms}$ |
+| Pipeline Stage | Module | Algorithmic Mechanism |
+| :--- | :--- | :--- |
+| **1. Video Capture** | [`inference.py`](./inference.py) | OpenCV stream ingestion, RGB color conversion, horizontal mirror flip for webcam interaction. |
+| **2. Landmark Detection** | [`feature_extractor.py`](./feature_extractor.py) | MediaPipe Hand Landmarker (`Tasks API` with `mp.solutions` fallback), regressing 21 3D landmarks per hand. |
+| **3. Kinematic Normalization** | [`feature_extractor.py`](./feature_extractor.py) | **Translation Centering:** $p'_i = p_i - p_0$<br>**Scale Normalization:** $p''_i = \frac{p'_i}{\|p'_9\|_2 + \epsilon}$ |
+| **4. Temporal Windowing** | [`buffer.py`](./buffer.py) | Circular FIFO ring-buffer preserving continuous $T=30$ frame context with contiguous PyTorch tensor output. |
+| **5. Sequence Inference** | [`models.py`](./models.py) | Unidirectional PyTorch **`GestureGRU`** (`bidirectional=False`, 64,969 params) with temporal self-attention pooling, plus `GestureLSTM` and `GestureTCN` variants. Evaluated on stride $k=2$. |
+| **6. Temporal Debounce** | [`smoother.py`](./smoother.py) | Softmax EMA filter ($\alpha=0.65$), confidence threshold gate ($\tau=0.70$), and consecutive-frame debounce ($N=3$). |
 
 ---
 
 ## 🚀 Key Engineering Highlights
 
-### ⚡ 7,300x Spatial Dimensionality Reduction
-By extracting coordinate landmarks rather than processing raw image pixels:
+### Spatial Dimensionality Reduction
+By extracting 3D hand coordinates rather than processing raw image pixels:
 $$\text{Compression Factor} = \frac{640 \times 480 \times 3 \times 30 \text{ floats}}{30 \times (2 \times 21 \times 3) \text{ floats}} \approx \mathbf{7{,}314\times \text{ Data Reduction}}$$
-This shifts the heavy visual representation workload to Google's specialized landmark models while feeding an ultra-compact vector into PyTorch.
+This delegates visual hand-pose regression to MediaPipe while feeding a compact $126$-dimensional kinematic vector per frame into PyTorch.
 
-### 📐 Scale & Translation Invariance
-Sign language gestures must be identifiable whether the signer is sitting 0.5m or 3m from the lens, or shifted in the video corner:
-1. **Wrist-Anchored Origin**: Sets wrist landmark index 0 to $(0,0,0)$, making spatial coordinates invariant to camera position.
-2. **Anthropometric Metric Scale**: Scales all vectors by the Euclidean distance to the middle finger knuckle (index 9), rendering the representation invariant to depth and subject hand geometry.
+### Scale & Translation Invariance
+Sign language gestures must remain consistent regardless of signer position or camera depth:
+1. **Wrist-Anchored Origin**: Sets wrist landmark index `0` to $(0, 0, 0)$, making spatial coordinates invariant to frame translation.
+2. **Anthropometric Metric Scale**: Scales all vectors by the Euclidean distance from wrist (`0`) to middle finger MCP (`9`), rendering the representation invariant to camera depth and hand size.
 
-### 🧠 Attention-Augmented Dynamic Sequence Modeling
-Static classifiers fail to recognize dynamic signs (e.g., distinguishing between a stationary fist and a nodding "YES", or waving "HELLO").
-- **Gated Recurrent Units (GRU)** provide 25% fewer parameter operations than LSTMs while capturing temporal progression.
-- **Temporal Attention Pooling** learns to weight inflection points in the gesture trajectory rather than naively utilizing only the final frame's hidden state.
+### Attention-Augmented Dynamic Sequence Modeling
+Static classifiers cannot distinguish dynamic trajectories (e.g., a stationary fist vs. a nodding "YES", or waving "HELLO").
+- **`GestureGRU` (`bidirectional=False`, 64,969 params)**: Unidirectional 2-layer GRU with `LayerNorm` input projection and `TemporalAttention` pooling to weight key inflection frames across the 30-frame window.
+- **`GestureLSTM` & `GestureTCN`**: Included as drop-in architectural baselines for controlled ablation studies, with `GestureTCN` using dilated 1D causal convolutions.
 
-### 🛡️ Zero-Flicker Debounce State Machine
-Direct frame-by-frame argmax predictions in computer vision produce rapid flickering. The custom [`PredictionSmoother`](file:///c:/Real-Time%20sign%20language%20traslator/smoother.py) implements:
+### Zero-Flicker Debounce State Machine
+Direct frame-by-frame `argmax` predictions produce label flickering. [`PredictionSmoother`](./smoother.py) applies:
 1. **Exponential Moving Average (EMA)** on class probability vectors: $\bar{p}_t = \alpha \bar{p}_{t-1} + (1 - \alpha) p_t$.
-2. **Confidence Gating**: Disregards predictions below a strict threshold ($\tau = 0.70$).
-3. **Temporal Debouncing**: Requires a newly dominant class to maintain dominance for $3$ consecutive inference cycles before updating active translation states and sentence accumulation.
+2. **Confidence Gating**: Ignores predictions below threshold $\tau = 0.70$.
+3. **Temporal Debouncing**: Requires a candidate class to remain dominant for $N = 3$ consecutive inference cycles before committing to the translation subtitle buffer.
 
 ---
 
-## 📊 Empirical Performance Benchmarks
+## 📊 Empirical Benchmarks & Architecture Ablation
 
-*Benchmarked on standard x86-64 consumer CPU (Intel Core i7 / AMD Ryzen 7) without requiring dedicated discrete GPU:*
+### Dataset Statistics (WLASL Top-15 Subset)
+Extracted via [`extract_landmarks.py`](./extract_landmarks.py) from `WLASL_v0.3.json` using official signer/video-disjoint `train` / `val` / `test` splits (`seq_len=30`, `min_valid_ratio=0.30`):
+- **15 Glosses**: `accident`, `before`, `bowling`, `candy`, `computer`, `cool`, `cousin`, `drink`, `go`, `help`, `short`, `tall`, `thanksgiving`, `thin`, `who`
+- **Split Counts (Clips)**: `148` train / `38` val / `24` test (`210` kept, `2` dropped for `<30%` hand detection, `0` unreadable)
+- **Signer Counts (Tr / Va / Te)**: `38` / `24` / `15`
+- **Mean Hand Detection Rate**: `67.0%`
 
-```
-==================================================
-        REAL-TIME INFERENCE TELEMETRY
-==================================================
-  Hardware Target:         Standard CPU (No GPU required)
-  Model Architecture:      GestureBiGRU + Temporal Attention
-  Total Parameters:        64,969 (< 260 KB)
-  Average End-to-End Latency: 25.39 ms / frame
-  95th Percentile Latency:  32.89 ms / frame
-  Effective Throughput:    40.6 FPS (Target: 30 FPS)
-  Memory Footprint:        ~185 MB RAM
-==================================================
-```
+### Held-Out Test Ablation (`--epochs 40 --seed 42`)
+All models were trained with `AdamW`, `CosineAnnealingLR`, label smoothing (`0.05`), and checkpoint selection strictly by **validation Macro-F1** (training-only kinematic augmentations disabled on val/test):
 
----
+| Model | Params | FP32 Size (KB) | Val Macro-F1 (%) | Test Top-1 (%) | Test Top-3 (%) | Test Macro-F1 (%) | CPU Mean (ms) | CPU P95 (ms) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `GRU` | 65,424 | 255.6 | 37.71 | 33.33 | 70.83 | 23.67 | 3.163 | 3.703 |
+| `LSTM` | 82,064 | 320.6 | 50.22 | 33.33 | 75.00 | 32.78 | 1.076 | 1.673 |
+| `TCN` | 70,927 | 277.1 | 70.87 | 58.33 | 83.33 | 52.03 | 1.968 | 2.724 |
 
-## 🛠️ Tech Stack & Tooling
-
-<div align="center">
-  <table>
-    <tr>
-      <td align="center" width="160">
-        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" width="48" height="48" alt="Python" />
-        <br /><b>Python 3.10+</b>
-        <br /><sub>Core Runtime</sub>
-      </td>
-      <td align="center" width="160">
-        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/pytorch/pytorch-original.svg" width="48" height="48" alt="PyTorch" />
-        <br /><b>PyTorch</b>
-        <br /><sub>Sequence Modeling</sub>
-      </td>
-      <td align="center" width="160">
-        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/opencv/opencv-original.svg" width="48" height="48" alt="OpenCV" />
-        <br /><b>OpenCV</b>
-        <br /><sub>Video & HUD UI</sub>
-      </td>
-      <td align="center" width="160">
-        <img src="https://cdn.simpleicons.org/mediapipe/007FFF" width="48" height="48" alt="MediaPipe" />
-        <br /><b>MediaPipe</b>
-        <br /><sub>3D Skeletal Tracking</sub>
-      </td>
-      <td align="center" width="160">
-        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/numpy/numpy-original.svg" width="48" height="48" alt="NumPy" />
-        <br /><b>NumPy</b>
-        <br /><sub>Tensor Operations</sub>
-      </td>
-    </tr>
-  </table>
-</div>
+### End-to-End CPU Pipeline Telemetry (`inference.py --benchmark --weights results/gesture_tcn.pt`)
+Measured across 60 frames on CPU (`k=2` amortized inference stride):
+- **Average End-to-End Latency**: `18.11 ms / frame`
+- **95th Percentile Latency**: `22.10 ms / frame`
+- **Effective Throughput**: `55.2 FPS` (`1000 / mean_ms`)
 
 ---
 
 ## 💻 Quickstart & Installation
 
-<details open>
-<summary><b>1. Environment Setup & Installation</b></summary>
+### 1. Environment Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/Code-Master-1110-PGH/Real-Time-Sign-Language-Translator.git
 cd Real-Time-Sign-Language-Translator
 
-# Create and activate virtual environment
 python -m venv venv
-# On Windows:
+# Windows:
 .\venv\Scripts\activate
-# On Linux/macOS:
+# Linux/macOS:
 source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-</details>
+### 2. Extract Real Landmarks (WLASL Subset or Custom Videos)
 
-<details open>
-<summary><b>2. Run Live Real-Time Translation</b></summary>
-
-Launch the real-time webcam translation application:
+Extract normalized `(T=30, 126)` hand landmark sequences from a WLASL subset while preserving official `train` / `val` / `test` splits and `frame_start` / `frame_end` annotations:
 
 ```bash
-python inference.py --source 0 --model-type gru
+python extract_landmarks.py \
+  --wlasl-json WLASL_v0.3.json \
+  --video-dir path/to/wlasl_videos \
+  --top-k-glosses 15 \
+  --seq-len 30 \
+  --output data/wlasl_landmarks.npz
+```
+
+Or use a folder-structured video dataset (`<root>/<split>/<class_name>/*.mp4`):
+
+```bash
+python extract_landmarks.py --folder-dir path/to/videos --output data/custom_landmarks.npz
+```
+
+### 3. Train & Run Ablation Suite
+
+```bash
+# Train a single model (e.g., GestureGRU)
+python train.py --data data/wlasl_landmarks.npz --model-type gru --epochs 40 --seed 42
+
+# Run full GRU vs. LSTM vs. TCN ablation suite
+python train.py --data data/wlasl_landmarks.npz --ablation --epochs 40 --seed 42
+```
+
+### 4. Run Real-Time Inference or Headless Benchmark
+
+`inference.py` automatically reads `class_names`, `model_type`, `num_classes`, and architecture hyperparameters from the saved checkpoint:
+
+```bash
+# Live webcam inference
+python inference.py --source 0 --weights results/gesture_gru.pt
+
+# Headless end-to-end latency benchmark
+python inference.py --benchmark --weights results/gesture_gru.pt
 ```
 
 **Interactive Keyboard Controls:**
@@ -199,35 +170,22 @@ python inference.py --source 0 --model-type gru
 - `c` — Clear the running translation subtitle sentence.
 - `r` — Reset temporal buffers and debounce state machines.
 
-</details>
-
-<details>
-<summary><b>3. Model Training & Data Synthesis</b></summary>
-
-Train or fine-tune the sequential dynamic model using the included kinematic trajectory synthesis engine or custom dataset:
+### 5. Run Unit Tests
 
 ```bash
-# Train GRU sequence classifier
-python train.py --epochs 20 --batch-size 32 --model-type gru
-
-# Train Temporal Convolutional Network (TCN) variant
-python train.py --epochs 20 --batch-size 32 --model-type tcn
+pytest -v
 ```
 
-Checkpoints will be saved automatically to `gesture_model.pt`.
+---
 
-</details>
+## ⚠️ Limitations & Error Analysis
 
-<details>
-<summary><b>4. Headless Latency Benchmark</b></summary>
-
-Execute an end-to-end telemetry and throughput benchmark without needing a webcam connected:
-
-```bash
-python inference.py --benchmark
-```
-
-</details>
+- **Observed Test Confusion Patterns ([`confusion_matrix_tcn.png`](./results/confusion_matrix_tcn.png))**: On the 24-clip held-out test set, `GestureTCN` achieved 100% recall on `computer`, `cousin`, `drink`, `go`, `help`, `thanksgiving`, and `who`, but exhibited systematic confusions among signs sharing similar handshapes at different facial/body locations:
+  - `candy` (`2/3` test clips) and `cool` (`1/2`) were misclassified as `who` (all three are single-hand signs articulated near the chin/mouth, which wrist-centered hand-only coordinates cannot anchor to facial landmarks).
+  - `tall` (`1/1`) and `thin` (`1/2`) were confused with `drink`, and `accident` (`1/2`) / `before` (`1/3`) showed mutual confusion.
+- **Hand-Only Representation**: The current feature vector encodes only 21 3D landmarks per hand (`126` dims). Incorporating upper-body pose and face-mesh anchor landmarks would directly resolve location-dependent confusions (e.g., chin vs. cheek vs. chest) and non-manual markers.
+- **Hand Occlusion & Motion Blur**: Rapid signing or hand-over-hand/face occlusion causes MediaPipe dropouts (`67.0%` mean hand detection rate on the WLASL-15 subset; `2` clips dropped below `--min-valid-ratio 0.30`).
+- **Canonical Hand Ordering**: MediaPipe returns detected hands in detector order rather than guaranteed left/right handedness slots, introducing slot-ordering variance on two-handed signs.
 
 ---
 
@@ -235,27 +193,23 @@ python inference.py --benchmark
 
 ```
 Real-Time-Sign-Language-Translator/
-├── config.py             # Strongly-typed configuration dataclasses & vocabulary
-├── feature_extractor.py  # MediaPipe landmark detector & anthropometric normalizer
+├── config.py             # Strongly-typed configuration dataclass & defaults
+├── extract_landmarks.py  # Reproducible CLI for WLASL / folder video landmark extraction
+├── feature_extractor.py  # MediaPipe landmark detector & wrist-anchored normalizer
 ├── buffer.py             # Circular sliding-window ring buffer (FIFO)
-├── models.py             # PyTorch GRU, LSTM, & TCN with temporal self-attention
+├── models.py             # PyTorch GestureGRU, GestureLSTM, & GestureTCN
 ├── smoother.py           # EMA probability filter & debouncing state machine
-├── dataset.py            # Dataset loader, augmentations & kinematic generator
-├── train.py              # PyTorch training pipeline with cosine annealing
+├── dataset.py            # NPZ split loader & training-only kinematic augmentations
+├── train.py              # Leakage-free training, held-out test eval, & ablation suite
 ├── inference.py          # Real-time OpenCV execution loop & diagnostic HUD
-├── requirements.txt      # Production package dependencies
-├── .gitignore            # Git exclusion rules for caches and binaries
+├── tests/
+│   └── test_pipeline.py  # Pytest suite (shapes, param count, TCN causality, invariance)
+├── requirements.txt      # Package dependencies
 └── README.md             # Project documentation & architectural specification
 ```
 
 ---
 
-## 🤝 Contributing & License
+## 🤝 License
 
-Contributions, feature requests, and vocabulary expansions are welcome! Feel free to open an issue or submit a Pull Request.
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
-<div align="center">
-  <sub>Engineered with precision for real-time edge intelligence. Star ⭐ this repository if you found it useful!</sub>
-</div>
+Distributed under the **MIT License**. See [`LICENSE`](./LICENSE) for more information.
